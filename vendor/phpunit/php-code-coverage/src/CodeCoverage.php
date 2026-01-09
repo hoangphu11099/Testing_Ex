@@ -39,7 +39,7 @@ use SebastianBergmann\CodeCoverage\Test\TestStatus\TestStatus;
 /**
  * Provides collection functionality for PHP code coverage information.
  *
- * @phpstan-type TestType array{size: string, status: string}
+ * @phpstan-type TestType array{size: string, status: string, time: float}
  * @phpstan-type TargetedLines array<non-empty-string, list<positive-int>>
  */
 final class CodeCoverage
@@ -77,18 +77,6 @@ final class CodeCoverage
         $this->data   = new ProcessedCodeCoverageData;
     }
 
-    /**
-     * @return array{
-     *     cacheDirectory: ?string,
-     *     checkForUnintentionallyCoveredCode: bool,
-     *     includeUncoveredFiles: bool,
-     *     ignoreDeprecatedCode: bool,
-     *     parentClassesExcludedFromUnintentionallyCoveredCodeCheck: list<class-string>,
-     *     filter: Filter,
-     *     data: ProcessedCodeCoverageData,
-     *     tests: array<string, TestType>
-     * }
-     */
     public function __serialize(): array
     {
         $prefix = "\x00" . self::class . "\x00";
@@ -201,11 +189,11 @@ final class CodeCoverage
         $this->cachedReport = null;
     }
 
-    public function stop(bool $append = true, ?TestStatus $status = null, null|false|TargetCollection $covers = null, ?TargetCollection $uses = null): RawCodeCoverageData
+    public function stop(bool $append = true, ?TestStatus $status = null, null|false|TargetCollection $covers = null, ?TargetCollection $uses = null, float $time = 0.0): RawCodeCoverageData
     {
         $data = $this->driver->stop();
 
-        $this->append($data, null, $append, $status, $covers, $uses);
+        $this->append($data, null, $append, $status, $covers, $uses, $time);
 
         $this->currentId    = null;
         $this->currentSize  = null;
@@ -219,7 +207,7 @@ final class CodeCoverage
      * @throws TestIdMissingException
      * @throws UnintentionallyCoveredCodeException
      */
-    public function append(RawCodeCoverageData $rawData, ?string $id = null, bool $append = true, ?TestStatus $status = null, null|false|TargetCollection $covers = null, ?TargetCollection $uses = null): void
+    public function append(RawCodeCoverageData $rawData, ?string $id = null, bool $append = true, ?TestStatus $status = null, null|false|TargetCollection $covers = null, ?TargetCollection $uses = null, float $time = 0.0): void
     {
         if ($id === null) {
             $id = $this->currentId;
@@ -292,6 +280,7 @@ final class CodeCoverage
         $this->tests[$id] = [
             'size'   => $size->asString(),
             'status' => $status->asString(),
+            'time'   => $time,
         ];
 
         $this->data->markCodeAsExecutedByTestCase($id, $rawData);
@@ -415,6 +404,22 @@ final class CodeCoverage
     public function validate(TargetCollection $targets): ValidationResult
     {
         return (new TargetCollectionValidator)->validate($this->targetMapper(), $targets);
+    }
+
+    /**
+     * @internal
+     */
+    public function driverIsPcov(): bool
+    {
+        return $this->driver->isPcov();
+    }
+
+    /**
+     * @internal
+     */
+    public function driverIsXdebug(): bool
+    {
+        return $this->driver->isXdebug();
     }
 
     /**
